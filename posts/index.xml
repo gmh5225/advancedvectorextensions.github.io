@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Posts on AVX&#39;s Blog</title>
+    <link>/posts/</link>
+    <description>Recent content in Posts on AVX&#39;s Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Thu, 13 Apr 2023 00:00:00 +0000</lastBuildDate><atom:link href="/posts/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Unleashing the Secrets Behind EasyAntiCheat’s CR3 Protection</title>
+      <link>/posts/easyanticheat-cr3-protection/</link>
+      <pubDate>Thu, 13 Apr 2023 00:00:00 +0000</pubDate>
+      
+      <guid>/posts/easyanticheat-cr3-protection/</guid>
+      <description>Disclaimer The information provided in this document is intended solely for educational and informational purposes. It is not meant to belittle EasyAntiCheat or any individuals involved in its development or implementation. Rather, it aims to shed light on the internal workings of EasyAntiCheat so that consumers can better understand what happens behind the scenes when playing their favorite games. Any opinions expressed herein do not necessarily reflect those of EasyAntiCheat or any other parties mentioned.</description>
+      <content>&lt;h1 id=&#34;disclaimer&#34;&gt;Disclaimer&lt;/h1&gt;
+&lt;p&gt;The information provided in this document is intended &lt;strong&gt;solely for educational and informational purposes&lt;/strong&gt;. It is &lt;strong&gt;not meant to belittle EasyAntiCheat&lt;/strong&gt; or any individuals involved in its development or implementation. Rather, it aims to shed light on the internal workings of EasyAntiCheat so that consumers can better understand what happens behind the scenes when playing their favorite games. Any opinions expressed herein &lt;strong&gt;do not necessarily reflect those of EasyAntiCheat&lt;/strong&gt; or any other parties mentioned. This document is provided &amp;ldquo;&lt;strong&gt;as is&lt;/strong&gt;&amp;rdquo; without warranty of any kind, either express or implied, including but not limited to the implied warranties of merchantability and fitness for a particular purpose. I shall not be liable for any damages whatsoever arising out of or in connection with the use of this document.&lt;/p&gt;
+&lt;h1 id=&#34;introduction&#34;&gt;Introduction&lt;/h1&gt;
+&lt;p&gt;The world of online gaming has long been plagued by the scourge of cheaters, whose insidious machinations threaten to undermine the very foundations upon which fair play and competition are built. But fear not, for there is a shining beacon of hope in this dark and murky landscape - EasyAntiCheat. Employed by some of the most popular titles on the market today, this cutting-edge software represents a formidable bulwark against those who would seek to gain an unfair advantage through illicit means. But just how does it work? What makes it so effective? And can it truly stand up to the ever-evolving tactics of the cheating underworld? Join us as we delve deep into the heart of this technological marvel and uncover the secrets that make it a force to be reckoned with.&lt;/p&gt;
+&lt;h1 id=&#34;before-we-dive-in-getting-the-basics-right&#34;&gt;Before We Dive In: Getting the Basics Right&lt;/h1&gt;
+&lt;p&gt;To proceed with the remaining part of the article, I recommend first addressing these topics:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.triplefault.io/2017/07/introduction-to-ia-32e-hardware-paging.html&#34;&gt;IA-32e Hardware Paging&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://www.triplefault.io/2017/08/exploring-windows-virtual-memory.html&#34;&gt;Windows Virtual Memory Management&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://en.wikipedia.org/wiki/Process_isolation&#34;&gt;Process Isolation&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h1 id=&#34;identifying-the-problem&#34;&gt;Identifying the Problem&lt;/h1&gt;
+&lt;p&gt;As any individual who has engaged in cheating will attest, accessing memory is a pivotal aspect of the process. However, with anti-cheat measures operating at the kernel level, cheaters have had to resort to executing at this elevated level as well; the highest level under &lt;code&gt;SMM&lt;/code&gt; and &lt;code&gt;VT-X/AMD-V&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;As anti-cheats have evolved, they have adopted increasingly sophisticated strategies that delve deep into the intricacies of the Windows kernel. Take, for instance, Vanguard, the anti-cheat system used in Valorant. It safeguards critical game regions by utilizing a technique to hook context swaps and creating a whitelist of specific threads that are authorized to access their cloned &lt;code&gt;CR3&lt;/code&gt;; which allows for seamless, yet secure, access to the protected memory.&lt;/p&gt;
+&lt;p&gt;Such measures have proven especially effective in thwarting DMA cheats, which leverage an external device to translate virtual memory to its corresponding physical memory mappings and extract data.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-cpp&#34; data-lang=&#34;cpp&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;VOID VgkHooks&lt;span style=&#34;color:#f92672&#34;&gt;::&lt;/span&gt;PostSwapContext( PVOID Thread )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	UINT64 ThreadIndex &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	BOOLEAN AllowCr3Write &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; FALSE;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#75715e&#34;&gt;// I have simplified it here, this routine actually decrypts the obfuscated import.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#66d9ef&#34;&gt;const&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;auto&lt;/span&gt; PsGetThreadProcess &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; Vgk&lt;span style=&#34;color:#f92672&#34;&gt;::&lt;/span&gt;Imports&lt;span style=&#34;color:#f92672&#34;&gt;::&lt;/span&gt;PsGetThreadProcess;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#75715e&#34;&gt;// Ensure that we are swapping a thread associated with Valorant.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( __readcr3( ) &lt;span style=&#34;color:#f92672&#34;&gt;==&lt;/span&gt; GuardedRegion.GameCr3 )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( PsGetThreadProcess( Thread ) &lt;span style=&#34;color:#f92672&#34;&gt;==&lt;/span&gt; VgkData&lt;span style=&#34;color:#f92672&#34;&gt;::&lt;/span&gt;ValorantProcess )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			_disable( );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;// Update the pml4s, Windows may have changed it.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			Vgk&lt;span style=&#34;color:#f92672&#34;&gt;::&lt;/span&gt;Setup( GuardedRegion.OriginalPml4s );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			memcpy( GuardedRegion.ClonedPml4s, GuardedRegion.OriginalPml4s, PAGE_SIZE );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;// As the pml4 table has been overwritten, it is necessary for us to reset our pml4e.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			GuardedRegion.ClonedPml4s[ GuardedRegion.AvailablePml4Index ] &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; GuardedRegion.NewPml4e;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;// Has the game surpassed the maximum allowable whitelisted thread count as permitted by VGK?
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( ThreadData.Count &lt;span style=&#34;color:#f92672&#34;&gt;!=&lt;/span&gt; VGK_MAX_THREADS )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( &lt;span style=&#34;color:#f92672&#34;&gt;!&lt;/span&gt;ThreadData.Count )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				WriteCr3:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;					&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( AllowCr3Write )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;						__writecr3( GuardedRegion.NewCr3 );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;					&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( ShouldFlushTlb )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;						FlushTlb( );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;					_enable( );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;					&lt;span style=&#34;color:#66d9ef&#34;&gt;return&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;				&lt;span style=&#34;color:#75715e&#34;&gt;// If not, enumerate through each whitelisted thread.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;				&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;				&lt;span style=&#34;color:#66d9ef&#34;&gt;while&lt;/span&gt; ( Thread &lt;span style=&#34;color:#f92672&#34;&gt;!=&lt;/span&gt; ThreadData.List[ ThreadIndex ] )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;					&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( ThreadIndex&lt;span style=&#34;color:#f92672&#34;&gt;++&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;&amp;gt;=&lt;/span&gt; ThreadData.Count )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;						&lt;span style=&#34;color:#66d9ef&#34;&gt;goto&lt;/span&gt; WriteCr3;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			AllowWriteCr3 &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; TRUE;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#66d9ef&#34;&gt;goto&lt;/span&gt; WriteCr3;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt; 	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
+&lt;p&gt;The code that is not relevant to this article has been redacted, and the remaining code has been formatted for improved readability.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;While this is certainly fascinating, the question remains: how does all of this relate to EasyAntiCheat? As it turns out, EasyAntiCheat is also quite adept at detecting and thwarting cheat attempts. In fact, it employs a technique that is similar to the aforementioned Vanguard anti-cheat, albeit one that is more complex in nature.&lt;/p&gt;
+&lt;p&gt;However, unlike Vanguard, which utilizes two legitimate address spaces, EasyAntiCheat opts for a different approach - one that involves concealing its original &lt;code&gt;CR3&lt;/code&gt; from any prying eyes. This is an involved and intricate technique, but one that has proven to be quite effective in deterring cheaters.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;It&amp;rsquo;s worth noting that &lt;code&gt;Rust&lt;/code&gt;, the game detailed in this article, incorporates &lt;code&gt;EasyAntiCheat_EOS&lt;/code&gt;. As far as my observation goes, no other EOS-protected game has implemented this particular approach.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h1 id=&#34;explaining-the-problem&#34;&gt;Explaining the Problem&lt;/h1&gt;
+&lt;p&gt;In order to provide additional support for the claims we have made, we&amp;rsquo;ll translate Rust&amp;rsquo;s base address to its corresponding physical mapping using the &lt;code&gt;CR3&lt;/code&gt; located in the &lt;code&gt;EProcess::DirectoryTableBase&lt;/code&gt; field. This will provide us with concrete evidence to support our claim, which is a critical step because if the &lt;code&gt;CR3&lt;/code&gt; value is truly invalid, the translation process would fail as it would not be pointing to any legitimate &lt;code&gt;PML4&lt;/code&gt; table.&lt;/p&gt;
+&lt;p&gt;To further validate our findings, we&amp;rsquo;ll compare the results obtained through this process with the actual game&amp;rsquo;s fixed &lt;code&gt;CR3&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;To simplify this task, and make the process more efficient, we&amp;rsquo;ll utilize the well-known and widely-used &lt;a href=&#34;https://www.cheatengine.org/&#34;&gt;Cheat Engine&lt;/a&gt; Lua scripting interface.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;I decided to use Cheat Engine because it offers scripting capabilities that can be quickly accessed and modified, rather than having to create a driver for every minor alteration.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-lua&#34; data-lang=&#34;lua&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;local&lt;/span&gt; RustProcess &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; dbk_getPEProcess( RustPid );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;local&lt;/span&gt; RustSectionBaseAddress &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; readQword( RustProcess &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0x520&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;local&lt;/span&gt; RustDirectoryTableBase &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; readQword( RustProcess &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0x28&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;print( string.format( &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;RustSectionBaseAddress -&amp;gt; %X&amp;#34;&lt;/span&gt;, RustSectionBaseAddress ) );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;print( string.format( &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;RustDirectoryTableBase -&amp;gt; %X&amp;#34;&lt;/span&gt;, RustDirectoryTableBase ) );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;local&lt;/span&gt; RustPhysicalBaseAddress &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; getPhysicalAddressCR3( RustDirectoryTableBase, RustSectionBaseAddress );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;not&lt;/span&gt; RustPhysicalBaseAddress &lt;span style=&#34;color:#66d9ef&#34;&gt;then&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  	print( &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Error -&amp;gt; 0&amp;#34;&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;else&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;   	print( string.format( &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Success -&amp;gt; %X&amp;#34;&lt;/span&gt;, RustPhysicalBaseAddress ) );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;end&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;--[[
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;	RustSectionBaseAddress -&amp;gt; 7FF7B4600000 
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;	RustDirectoryTableBase -&amp;gt; 4000000853DFF000 
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;	Error -&amp;gt; 0 
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;--]]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now, for the corresponding counterpart:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-lua&#34; data-lang=&#34;lua&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;local&lt;/span&gt; RustProcess &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; dbk_getPEProcess( RustPid );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;local&lt;/span&gt; RustSectionBaseAddress &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; readQword( RustProcess &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0x520&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;local&lt;/span&gt; RustDirectoryTableBase &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; dbk_getCR3( );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;print( string.format( &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;RustSectionBaseAddress -&amp;gt; %X&amp;#34;&lt;/span&gt;, RustSectionBaseAddress ) );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;print( string.format( &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;RustDirectoryTableBase -&amp;gt; %X&amp;#34;&lt;/span&gt;, RustDirectoryTableBase ) );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;local&lt;/span&gt; RustPhysicalBaseAddress &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; getPhysicalAddressCR3( RustDirectoryTableBase, RustSectionBaseAddress );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;not&lt;/span&gt; RustPhysicalBaseAddress &lt;span style=&#34;color:#66d9ef&#34;&gt;then&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  	print( &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Error -&amp;gt; 0&amp;#34;&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;else&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;   	print( string.format( &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Success -&amp;gt; %X&amp;#34;&lt;/span&gt;, RustPhysicalBaseAddress ) );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;end&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;--[[
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;	RustSectionBaseAddress -&amp;gt; 7FF7B4600000 
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;	RustDirectoryTableBase -&amp;gt; 197198000 
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;	Success -&amp;gt; 199CFE000 
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;--]]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;As you can see, the &lt;code&gt;CR3&lt;/code&gt; value &lt;code&gt;4000000853DFF000&lt;/code&gt; appears quite peculiar at first glance. It&amp;rsquo;s pretty obvious that something is amiss even before consulting the manual. To get a better understanding, let&amp;rsquo;s use the programmer&amp;rsquo;s calculator on Windows to examine the toggled bits in the 64-bit integer.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://i.imgur.com/nzYfRgr.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;As observed from the calculator&amp;rsquo;s output, the 63rd bit is set. Armed with this knowledge, we can now refer to the manual to determine if this is a reserved bit that would trigger any sort of exception.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;If an attempt is made to change &lt;code&gt;CR4.PCIDE&lt;/code&gt; from 0 to 1 while &lt;code&gt;CR3[11:0]&lt;/code&gt; ≠ &lt;code&gt;000H&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;If an attempt is made to clear &lt;code&gt;CR0.PG[bit 31]&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;If an attempt is made to write a 1 to any reserved bit in &lt;code&gt;CR4&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;If an attempt is made to write a 1 to any reserved bit in &lt;code&gt;CR8&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;If an attempt is made to write a 1 to any reserved bit in &lt;code&gt;CR3[63:MAXPHYADDR]&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;If an attempt is made to leave IA-32e mode by clearing &lt;code&gt;CR4.PAE[bit 5]&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Since our focus is on a particular control register, namely the third one, we can narrow down the scope of the search to indicate that triggering a &lt;code&gt;#GP(0)&lt;/code&gt; exception would occur only if one tries to write a value of 1 to any reserved bit within &lt;code&gt;CR3[63:MAXPHYADDR]&lt;/code&gt;, which is exactly what we&amp;rsquo;re looking for!&lt;/p&gt;
+&lt;p&gt;At this point, you might be wondering why it&amp;rsquo;s not possible to unset those bits to make the &lt;code&gt;CR3&lt;/code&gt; valid. However, the &lt;code&gt;CR3&lt;/code&gt; that&amp;rsquo;s saved within Rust&amp;rsquo;s process is solely intended to trigger an exception and doesn&amp;rsquo;t refer to any &lt;code&gt;PML4s&lt;/code&gt; (without proper decryption). This approach from EasyAntiCheat is quite clever as it compels reverse engineers, such as ourselves, to obtain reverse their driver.&lt;/p&gt;
+&lt;h1 id=&#34;connecting-the-dots-the-thread-scheduler&#34;&gt;Connecting the Dots: The Thread Scheduler&lt;/h1&gt;
+&lt;p&gt;Now that we have obtained the prerequisite knowledge on the issue at hand, we can start connecting the dots to understand how EasyAntiCheat is exploiting the vulnerability.&lt;/p&gt;
+&lt;p&gt;As we already know, EasyAntiCheat forces an exception when the &lt;code&gt;EProcess::DirectoryTableBase&lt;/code&gt; is being written to the &lt;code&gt;CR3&lt;/code&gt; of any active processor. However, this raises the question: how exactly are they are abusing this?&lt;/p&gt;
+&lt;p&gt;To answer this question, let&amp;rsquo;s take a closer look at the &lt;code&gt;ntoskrnl!SwapContext&lt;/code&gt; routine, which is responsible for swapping the current core&amp;rsquo;s context to a new thread.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-cpp&#34; data-lang=&#34;cpp&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// The impact of their hook extends beyond this specific routine and encompasses any kernel routine that involves CR3 swapping, such as KiAttachProcess.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;UINT64 ProcessCr3 &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; Process&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;DirectoryTableBase;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( ( HvlEnlightenments &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt; ) &lt;span style=&#34;color:#f92672&#34;&gt;!=&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt; )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#75715e&#34;&gt;// If HyperV is present, it&amp;#39;ll handle swapping the current core&amp;#39;s CR3.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;	&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;	HvlSwitchVirtualAddressSpace( ProcessCr3 );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;else&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	__writecr3( ProcessCr3 );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( ShouldFlushTlb )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;		&lt;span style=&#34;color:#75715e&#34;&gt;// If possible, flushes the TLB for the current core. 
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;		&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;		&lt;span style=&#34;color:#66d9ef&#34;&gt;auto&lt;/span&gt; Cr4 &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; __readcr4( );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  		Cr4 &lt;span style=&#34;color:#f92672&#34;&gt;^=&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0x80&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		__writecr4( Cr4 );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		__writecr4( Cr4 &lt;span style=&#34;color:#f92672&#34;&gt;^&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0x80&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
+&lt;p&gt;The code that is not relevant to this article has been redacted, and the remaining code has been formatted for improved readability.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;By analyzing the code within this routine, we can see that the function proceeds to update the &lt;code&gt;CR3&lt;/code&gt; register to the &lt;code&gt;EProcess::DirectoryTableBase&lt;/code&gt; field using the &lt;code&gt;__writecr3&lt;/code&gt; intrinsic.
+It is at this point where EasyAntiCheat is able to exploit the vulnerability. By forcing an exception, and catching it, EasyAntiCheat is able to instrument when a thread is being swapped, and thereby obtain complete and utter control over their game&amp;rsquo;s context-switches (and other whitelisted regions).&lt;/p&gt;
+&lt;h1 id=&#34;connecting-the-dots-wresling-the-exception&#34;&gt;Connecting the Dots: Wresling the Exception&lt;/h1&gt;
+&lt;p&gt;Following the reverse engineering process, the next step is to locate the location where EasyAntiCheat writes the updated &lt;code&gt;CR3&lt;/code&gt;. Based on our previous findings, this will be found within their exception hook.&lt;/p&gt;
+&lt;p&gt;Although there are multiple methods to achieve this, the steps I will take include:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Utilizing my &lt;code&gt;VT-X&lt;/code&gt; hypervisor to virtualize all logical processors.&lt;/li&gt;
+&lt;li&gt;Installing an image load callback.&lt;/li&gt;
+&lt;li&gt;Upon the loading of the &lt;code&gt;EasyAntiCheat_EOS.sys&lt;/code&gt; driver, preserving the driver&amp;rsquo;s details.&lt;/li&gt;
+&lt;li&gt;Deferring a task to the subsequent &lt;code&gt;CR3&lt;/code&gt; write, if an attempt is made to write a 1 to any reserved bit in &lt;code&gt;CR3[63:MAXPHYADDR]&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Recording the &lt;code&gt;RVA&lt;/code&gt; using EasyAntiCheat&amp;rsquo;s stored driver information.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Upon completion of the aforementioned steps, and removing duplicates for clarity, the outcomes obtained are:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-json&#34; data-lang=&#34;json&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{&lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;Type&amp;#34;&lt;/span&gt;:&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Invalid&amp;#34;&lt;/span&gt;,&lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;RVA&amp;#34;&lt;/span&gt;:&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;ntoskrnl.exe+0x40028F&amp;#34;&lt;/span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{&lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;Type&amp;#34;&lt;/span&gt;:&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Valid&amp;#34;&lt;/span&gt;,&lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;RVA&amp;#34;&lt;/span&gt;:&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;EasyAntiCheat_EOS.sys+0x19A20&amp;#34;&lt;/span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{&lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;Type&amp;#34;&lt;/span&gt;:&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Invalid&amp;#34;&lt;/span&gt;,&lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;RVA&amp;#34;&lt;/span&gt;:&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;ntoskrnl.exe+0x20C130&amp;#34;&lt;/span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{&lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;Type&amp;#34;&lt;/span&gt;:&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Valid&amp;#34;&lt;/span&gt;,&lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;RVA&amp;#34;&lt;/span&gt;:&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;EasyAntiCheat_EOS.sys+0x19A20&amp;#34;&lt;/span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Although it may appear daunting initially, it is not something we have not previously discussed. Let&amp;rsquo;s review it together.&lt;/p&gt;
+&lt;p&gt;First, let us direct our attention towards the &lt;code&gt;Invalid&lt;/code&gt; outcomes, which occur when the kernel writes EasyAntiCheat&amp;rsquo;s exception-forced &lt;code&gt;CR3&lt;/code&gt;.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-asm&#34; data-lang=&#34;asm&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;.text:&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;000000000040028&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;F&lt;/span&gt;      &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;F&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;22&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;D9&lt;/span&gt;      &lt;span style=&#34;color:#66d9ef&#34;&gt;mov&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;cr3&lt;/span&gt;, &lt;span style=&#34;color:#66d9ef&#34;&gt;rcx&lt;/span&gt; &lt;span style=&#34;color:#75715e&#34;&gt;; SwapContext
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-asm&#34; data-lang=&#34;asm&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;.text:&lt;span style=&#34;color:#960050;background-color:#1e0010&#34;&gt;000000000020&lt;/span&gt;&lt;span style=&#34;color:#a6e22e&#34;&gt;C130&lt;/span&gt;      &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;F&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;22&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;DF&lt;/span&gt;      &lt;span style=&#34;color:#66d9ef&#34;&gt;mov&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;cr3&lt;/span&gt;, &lt;span style=&#34;color:#66d9ef&#34;&gt;rdi&lt;/span&gt; &lt;span style=&#34;color:#75715e&#34;&gt;; KiAttachProcess
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;As you can observe, we have previously covered this, it&amp;rsquo;s where the kernel writes Rust&amp;rsquo;s &lt;code&gt;CR3&lt;/code&gt;. Let&amp;rsquo;s now shift our focus towards the juicy &lt;code&gt;Valid&lt;/code&gt; outcomes, where EasyAntiCheat writes the genuine &lt;code&gt;CR3&lt;/code&gt;.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-cpp&#34; data-lang=&#34;cpp&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;BOOLEAN EacHooks&lt;span style=&#34;color:#f92672&#34;&gt;::&lt;/span&gt;HandleException( ExceptonData&lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt; Exception, PCONTEXT Context )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;#define GetFixedCr3( Key ) ((__ROR8__(_byteswap_uint64(Key), 31) &amp;amp; 0xFFFFFFFFF) &amp;lt;&amp;lt; 12)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( Exception&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Code &lt;span style=&#34;color:#f92672&#34;&gt;==&lt;/span&gt; STATUS_PRIVILEGED_INSTRUCTION  )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;		&lt;span style=&#34;color:#75715e&#34;&gt;// --&amp;gt; &amp;#34;mov cr3&amp;#34;, ??
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;		&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;		&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( &lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt;( WORD&lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt; )Context&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Rip &lt;span style=&#34;color:#f92672&#34;&gt;==&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0x220F&lt;/span&gt; )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;// mov cr3, &amp;#34;??&amp;#34; &amp;lt;--
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			BYTE Operand &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt;( BYTE&lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt; )( Context&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Rip &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;2&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;// Converts the operand to an offset in the context structure, beginning from RAX.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			Operand &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;=&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;7&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;// Retrieve the CR3 that was being written from its register.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			UINT64&lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt; Registers &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt;Context&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Rax;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			UINT64 AttemptedCr3 &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; Registers[ Operand ];
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;// This is always computes to the same value, which is the base of their structure&amp;#39;s allocation.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			UINT64 DataOffset &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; InterlockedExchangeAdd64( EAC&lt;span style=&#34;color:#f92672&#34;&gt;::&lt;/span&gt;InitialDataOffset, &lt;span style=&#34;color:#ae81ff&#34;&gt;0x1000000000&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			DataOffset &lt;span style=&#34;color:#f92672&#34;&gt;+=&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0x1000000000&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			DataOffset &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;=&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0xFFFFFFFFF&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			DataOffset &lt;span style=&#34;color:#f92672&#34;&gt;&amp;lt;&amp;lt;=&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;12&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;// In their actual code, this uses an address in the stack to perform their calculation against.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			EAC&lt;span style=&#34;color:#f92672&#34;&gt;::&lt;/span&gt;EacData&lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt; Data &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; ( EAC&lt;span style=&#34;color:#f92672&#34;&gt;::&lt;/span&gt;EacData&lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt; )( ( &lt;span style=&#34;color:#ae81ff&#34;&gt;0xFFFFull&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;48&lt;/span&gt; ) &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; DataOffset );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;// Nothing complicated here, just gets the current process.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			PEPROCESS CurrentProcess &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt;( PEPROCESS&lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt; )( UINT64( KeGetCurrentThread( ) ) &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; EAC&lt;span style=&#34;color:#f92672&#34;&gt;::&lt;/span&gt;ProcessOffset );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;// This isn&amp;#39;t exactly what&amp;#39;s done here, I&amp;#39;ve simplified it.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;			&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( CurrentProcess &lt;span style=&#34;color:#f92672&#34;&gt;!=&lt;/span&gt; Data&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Process )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( AttemptedCr3 &lt;span style=&#34;color:#f92672&#34;&gt;!=&lt;/span&gt; Data&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Cr3 )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;					InterlockedIncrement( Data&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Counter );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;					&lt;span style=&#34;color:#66d9ef&#34;&gt;return&lt;/span&gt; FALSE;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				__writecr3( __readcr3( ) );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				Context&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Rip &lt;span style=&#34;color:#f92672&#34;&gt;+=&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;3&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				InterlockedIncrement( Data&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Counter );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				&lt;span style=&#34;color:#66d9ef&#34;&gt;return&lt;/span&gt; TRUE;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( Context&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Rip &lt;span style=&#34;color:#f92672&#34;&gt;&amp;gt;=&lt;/span&gt; EAC&lt;span style=&#34;color:#f92672&#34;&gt;::&lt;/span&gt;WhitelistStart &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt; Context&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Rip &lt;span style=&#34;color:#f92672&#34;&gt;&amp;lt;&lt;/span&gt; EAC&lt;span style=&#34;color:#f92672&#34;&gt;::&lt;/span&gt;WhitelistEnd )
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			{
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;				&lt;span style=&#34;color:#75715e&#34;&gt;// This removes the reserved bits, and fixes the CR3.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;				&lt;span style=&#34;color:#75715e&#34;&gt;// The decryption changes per update, so don&amp;#39;t expect this to remain.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;				&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;				UINT64 FixedCr3 &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; AttemptedCr3 &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0xBFFF000000000FFF&lt;/span&gt;;	
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				FixedCr3 &lt;span style=&#34;color:#f92672&#34;&gt;|=&lt;/span&gt; GetFixedCr3( Data&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Key );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				__writecr3( FixedCr3 );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				Context&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Rip &lt;span style=&#34;color:#f92672&#34;&gt;+=&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;3&lt;/span&gt;;				
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				InterlockedIncrement( Data&lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt;Counter );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;				&lt;span style=&#34;color:#66d9ef&#34;&gt;return&lt;/span&gt; TRUE;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;			}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#66d9ef&#34;&gt;return&lt;/span&gt; FALSE;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;blockquote&gt;
+&lt;p&gt;The code that is not relevant to this article has been redacted, and the remaining code has been formatted for improved readability.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Although I have improved the code&amp;rsquo;s readability by symbolizing and cleaning it, I will still provide a summary of its behavior:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Verify that the exception resulted from a &lt;code&gt;mov cr3, ??&lt;/code&gt; instruction.&lt;/li&gt;
+&lt;li&gt;Extract the instruction&amp;rsquo;s operand and convert it to an index beginning from &lt;code&gt;ZERO/RAX&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Retrieve the value of the &lt;code&gt;CR3&lt;/code&gt; register from the the context structure.&lt;/li&gt;
+&lt;li&gt;Compute the address by calculating the offset to the hook&amp;rsquo;s data structure.&lt;/li&gt;
+&lt;li&gt;Verify that the exception occurred in Rust&amp;rsquo;s process and check the validity of the &lt;code&gt;CR3&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Verify that the exception occurred within a designated region inside &lt;code&gt;ntoskrnl.exe&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;If all of the above conditions are met, update &lt;code&gt;CR3&lt;/code&gt; and &lt;code&gt;RIP&lt;/code&gt; accordingly.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Awesome! You know the drill by now, let&amp;rsquo;s confirm our reversal by comparing Rust&amp;rsquo;s process with the structure.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-lua&#34; data-lang=&#34;lua&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;local&lt;/span&gt; InitialDataOffset &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; readQword( EacBase &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; EacInitialDataOffset );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;local&lt;/span&gt; DataOffset &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; bAnd( InitialDataOffset, &lt;span style=&#34;color:#ae81ff&#34;&gt;0xFFFFFFFFF&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;DataOffset &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; bShl( DataOffset, &lt;span style=&#34;color:#ae81ff&#34;&gt;12&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;local&lt;/span&gt; Data &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; bOr( bShl( &lt;span style=&#34;color:#ae81ff&#34;&gt;0xFFFF&lt;/span&gt;, &lt;span style=&#34;color:#ae81ff&#34;&gt;48&lt;/span&gt; ), DataOffset );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; ( readQword( Data &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0xC&lt;/span&gt; ) &lt;span style=&#34;color:#f92672&#34;&gt;==&lt;/span&gt; dbk_getPEProcess( RustPid ) ) &lt;span style=&#34;color:#66d9ef&#34;&gt;then&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	print( &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Valid Structure&amp;#34;&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;else&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	print( &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Invalid Structure&amp;#34;&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;end&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;--[[
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;	Valid Structure
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;--]]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h1 id=&#34;connecting-the-dots-hal-to-the-rescue&#34;&gt;Connecting the Dots: Hal to the Rescue!&lt;/h1&gt;
+&lt;p&gt;Up until now, we have discovered that EasyAntiCheat is somehow able to intercept any exception generated, but we don&amp;rsquo;t know how. So, let&amp;rsquo;s find out!&lt;/p&gt;
+&lt;p&gt;While there are multiple approaches to this problem, such as recursing and reversing through every function from the interrupt&amp;rsquo;s routine. I opted for a more suitable method, which involved tracking the return stack directly to the function.&lt;/p&gt;
+&lt;p&gt;To achieve this, I set a software breakpoint, &lt;code&gt;INT3&lt;/code&gt;, on their exception dispatcher routine and read the guest&amp;rsquo;s &lt;code&gt;RSP&lt;/code&gt; from the &lt;code&gt;VMCS&lt;/code&gt;. Then, I walked the stack and checked if the code was within a kernel code section.&lt;/p&gt;
+&lt;p&gt;After tracing where it led me, I came to the conclusion that EasyAntiCheat was hooking &lt;code&gt;Hal&lt;/code&gt; pointers, as the return address led to the return of a call to a &lt;code&gt;Hal&lt;/code&gt; callback.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-cpp&#34; data-lang=&#34;cpp&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;InternalData &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; HalpTimerGetInternalData( Timer );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Rax &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; ( &lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt;( &lt;span style=&#34;color:#66d9ef&#34;&gt;__int64&lt;/span&gt; ( &lt;span style=&#34;color:#66d9ef&#34;&gt;__fastcall&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;**&lt;/span&gt; )( &lt;span style=&#34;color:#66d9ef&#34;&gt;__int64&lt;/span&gt; ) )( Timer &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0x70&lt;/span&gt; ) )( InternalData );
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;This can be easily verified this by running this script and observing that all pointers point to EasyAntiCheat&amp;rsquo;s &lt;code&gt;Hal&lt;/code&gt; dispatcher:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-lua&#34; data-lang=&#34;lua&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;local&lt;/span&gt; Timer &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; readPointer( HalpRegisteredTimers );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;while&lt;/span&gt; Timer &lt;span style=&#34;color:#f92672&#34;&gt;~=&lt;/span&gt; HalpRegisteredTimers &lt;span style=&#34;color:#66d9ef&#34;&gt;do&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;      print( string.format( &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;Timer %X points to Function %X&amp;#34;&lt;/span&gt;, Timer, readPointer( Timer &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0x70&lt;/span&gt; ) ) );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;      Timer &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; readPointer( Timer );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;end&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;strong&gt;Congratulations on making it this far, that&amp;rsquo;s really impressive!&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;Now, I have a little brain-teaser for you. Based on the information I&amp;rsquo;ve given you previously, try to figure out how EasyAntiCheat manages its &lt;code&gt;Hal&lt;/code&gt; hooks by reversing their dispatcher.&lt;/p&gt;
+&lt;h1 id=&#34;building-the-puzzle-breaking-the-wall&#34;&gt;Building the Puzzle: Breaking the Wall&lt;/h1&gt;
+&lt;p&gt;I hope this article has been helpful in showing how anticheats can exploit the kernel to their advantage. However, this is just the beginning, as it&amp;rsquo;s likely that EasyAntiCheat will eventually start hooking syscalls from their driver - Vanguard has been doing it for a while already.&lt;/p&gt;
+&lt;p&gt;Furthermore, with EasyAntiCheat&amp;rsquo;s full control of context swaps, they can even implement per-thread hooks that are invisible to external threads. Alternatively, they can create hidden code regions that change on a per-thread basis.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-cpp&#34; data-lang=&#34;cpp&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// This changes per update, it&amp;#39;s very simple to copy.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;#define DecryptCr3( Cr3 )
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// We don&amp;#39;t need to increment it, it&amp;#39;s useless.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;UINT64 DataOffset &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; ( InitialDataOffset &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0xFFFFFFFFF&lt;/span&gt; ) &lt;span style=&#34;color:#f92672&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;12&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;UINT64 Data &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt;( UINT64&lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt; )( ( &lt;span style=&#34;color:#ae81ff&#34;&gt;0xFFFFull&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;48&lt;/span&gt; ) &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; DataOffset );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;DbgPrint( &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;[Eac] Data -&amp;gt; %llx&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;\n&lt;/span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;&lt;/span&gt;, Data );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;PEPROCESS RustProcess;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;PsLookupProcessByProcessId( RustPid, &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt;RustProcess );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;UINT64 FakeCr3 &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt;( UINT64&lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt; )( UINT64( RustProcess ) &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0x28&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;UINT64 FixedCr3 &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; DecryptCr3( FakeCr3 &lt;span style=&#34;color:#f92672&#34;&gt;&amp;amp;&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0xBFFF000000000FFF&lt;/span&gt; );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;DbgPrint( &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;[Eac] FixedCr3 -&amp;gt; %llx&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;\n&lt;/span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;&lt;/span&gt;, FixedCr3 );
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;// We don&amp;#39;t want to leak any memory.
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;//
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;&lt;/span&gt;ObDereferenceObject( RustProcess );
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;</content>
+    </item>
+    
+  </channel>
+</rss>
