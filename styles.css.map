@@ -1,7 +1,7 @@
 {
 	"version": 3,
 	"file": "styles.css",
-	"sourceRoot": "D:/VS/Misc/AVX/Blog",
+	"sourceRoot": "D:/VisualStudio/Projects/Blog",
 	"sources": [
 		"css/base.scss",
 		"themes/terminal/assets/css/variables.scss",
